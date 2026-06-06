@@ -1,3 +1,8 @@
+// WARNING: This store is process-local (in-memory Map). It does NOT enforce
+// limits across multiple serverless instances or Vercel cold starts. Each new
+// function instance starts with an empty store. For production multi-instance
+// enforcement, replace this with a shared store (e.g. Upstash Redis).
+
 type Entry = { count: number; resetAt: number };
 
 const store = new Map<string, Entry>();
@@ -8,6 +13,12 @@ export function checkRateLimit(
   windowMs: number
 ): { allowed: boolean; remaining: number } {
   const now = Date.now();
+
+  // Purge all expired entries on every write to prevent unbounded growth.
+  for (const [k, v] of store) {
+    if (now > v.resetAt) store.delete(k);
+  }
+
   const entry = store.get(key);
 
   if (!entry || now > entry.resetAt) {

@@ -13,23 +13,24 @@ function ParticleCanvas() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    type P = { x: number; y: number; vx: number; vy: number; r: number; color: string };
+    let particles: P[] = [];
+
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      const count = window.innerWidth < 768 ? 40 : 70;
+      particles = Array.from({ length: count }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.35,
+        vy: (Math.random() - 0.5) * 0.35,
+        r: Math.random() * 1.5 + 0.5,
+        color: Math.random() > 0.45 ? "rgba(236,173,10,0.65)" : "rgba(32,157,215,0.5)",
+      }));
     };
     resize();
     window.addEventListener("resize", resize, { passive: true });
-
-    type P = { x: number; y: number; vx: number; vy: number; r: number; color: string };
-    const count = window.innerWidth < 768 ? 40 : 70;
-    const particles: P[] = Array.from({ length: count }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.35,
-      vy: (Math.random() - 0.5) * 0.35,
-      r: Math.random() * 1.5 + 0.5,
-      color: Math.random() > 0.45 ? "rgba(236,173,10,0.65)" : "rgba(32,157,215,0.5)",
-    }));
 
     let raf: number;
 
@@ -45,21 +46,24 @@ function ParticleCanvas() {
         else if (p.y > canvas.height) p.y = 0;
       }
 
+        ctx.beginPath();
+      ctx.lineWidth = 0.5;
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 130) {
-            ctx.strokeStyle = `rgba(236,173,10,${0.12 * (1 - dist / 130)})`;
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
+          const dist2 = dx * dx + dy * dy;
+          if (dist2 < 16900) {
+            const dist = Math.sqrt(dist2);
+            ctx.globalAlpha = 0.12 * (1 - dist / 130);
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
           }
         }
       }
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "rgba(236,173,10,1)";
+      ctx.stroke();
 
       for (const p of particles) {
         ctx.fillStyle = p.color;
@@ -119,8 +123,11 @@ function TypingSubtitle() {
         const t = setTimeout(() => setDisplayed(displayed.slice(0, -1)), 28);
         return () => clearTimeout(t);
       } else {
-        setDeleting(false);
-        setPhraseIdx((i) => (i + 1) % PHRASES.length);
+        const t = setTimeout(() => {
+          setDeleting(false);
+          setPhraseIdx((i) => (i + 1) % PHRASES.length);
+        }, 0);
+        return () => clearTimeout(t);
       }
     }
   }, [displayed, deleting, phraseIdx]);

@@ -1,24 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildMarketingPrompt, MARKETING_ROLE_PROMPTS } from "@/lib/cv";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/ip";
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
-const SITE_URL = process.env.SITE_URL ?? "http://localhost:3000";
-const MODEL = "google/gemma-3-27b-it:free";
+const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
+const MODEL = "llama-3.3-70b-versatile";
 const DAILY_LIMIT = 10;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const VALID_ROLES = Object.keys(MARKETING_ROLE_PROMPTS);
 
-function getClientIp(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    req.headers.get("x-real-ip") ??
-    "anonymous"
-  );
-}
-
 export async function POST(req: NextRequest) {
+  // Finding 3: validate input BEFORE consuming rate-limit quota
+  let role: string;
+  try {
+    const body = await req.json();
+    role = body.role;
+    if (!role || !VALID_ROLES.includes(role)) throw new Error("invalid role");
+  } catch {
+    return NextResponse.json({ error: "Invalid role." }, { status: 400 });
+  }
+
+  if (!GROQ_API_KEY) {
+    return NextResponse.json({ error: "Service not configured." }, { status: 503 });
+  }
+
+  // Finding 3: rate-limit check after validation
   const ip = getClientIp(req);
   const { allowed, remaining } = checkRateLimit(`${ip}:marketing`, DAILY_LIMIT, WINDOW_MS);
 
@@ -29,29 +36,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let role: string;
-  try {
-    const body = await req.json();
-    role = body.role;
-    if (!role || !VALID_ROLES.includes(role)) throw new Error("invalid role");
-  } catch {
-    return NextResponse.json({ error: "Invalid role." }, { status: 400 });
-  }
-
-  if (!OPENROUTER_API_KEY) {
-    return NextResponse.json({ error: "Service not configured." }, { status: 503 });
-  }
-
   const systemPrompt = buildMarketingPrompt(role);
 
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    // Finding 2: add fetch timeout
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(8000),
       headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": SITE_URL,
-        "X-Title": "Gary Shnol Marketing Agent",
       },
       body: JSON.stringify({
         model: MODEL,
@@ -65,7 +59,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (!res.ok) {
-      console.error("OpenRouter marketing error:", res.status);
+      const errBody = await res.text().catch(() => "(unreadable)");
+      console.error("Groq error:", res.status, errBody);
       return NextResponse.json({ error: "AI service error." }, { status: 502 });
     }
 
@@ -78,6 +73,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ pitch: pitch.trim(), remaining });
   } catch (err) {
+    // Finding 2: handle timeout specifically
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
+      return NextResponse.json({ error: "AI service timed out." }, { status: 504 });
+    }
     console.error("Marketing error:", err);
     return NextResponse.json({ error: "Internal error." }, { status: 500 });
   }

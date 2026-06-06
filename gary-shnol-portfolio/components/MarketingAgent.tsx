@@ -14,7 +14,6 @@ function TypewriterText({ text }: { text: string }) {
   const [displayed, setDisplayed] = useState("");
 
   useEffect(() => {
-    setDisplayed("");
     if (!text) return;
     let i = 0;
     const timer = setInterval(() => {
@@ -77,10 +76,12 @@ export default function MarketingAgent() {
 
   const copyPitch = () => {
     if (!pitch) return;
-    navigator.clipboard.writeText(pitch).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(pitch)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => setError("Copy failed — please select and copy manually."));
   };
 
   return (

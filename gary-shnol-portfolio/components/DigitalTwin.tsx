@@ -16,9 +16,14 @@ const INITIAL_MSGS: ChatMsg[] = [
 function TypewriterMsg({ text, onDone }: { text: string; onDone?: () => void }) {
   const [displayed, setDisplayed] = useState("");
   const doneRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+
+  // Keep ref in sync without triggering effect
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  });
 
   useEffect(() => {
-    setDisplayed("");
     doneRef.current = false;
     let i = 0;
     const timer = setInterval(() => {
@@ -28,12 +33,12 @@ function TypewriterMsg({ text, onDone }: { text: string; onDone?: () => void }) 
         clearInterval(timer);
         if (!doneRef.current) {
           doneRef.current = true;
-          onDone?.();
+          onDoneRef.current?.();
         }
       }
     }, 12);
     return () => clearInterval(timer);
-  }, [text, onDone]);
+  }, [text]);
 
   return (
     <span className="font-mono text-sm whitespace-pre-wrap break-words" style={{ color: "rgba(232,237,242,0.85)", lineHeight: 1.65, fontSize: "0.875rem" }}>

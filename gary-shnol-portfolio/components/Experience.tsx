@@ -28,7 +28,7 @@ const ROLES: Role[] = [
       "Built e-commerce product integrating nine third-party systems end-to-end",
       "Jenkins CI/CD monitoring jobs, peer code reviews, technical onboarding",
     ],
-    chips: ["Java", "Kafka", "PostgreSQL", "REST APIs", "iPaaS", "Jenkins"],
+    chips: ["Java","Python", "Kafka", "PostgreSQL", "REST APIs", "iPaaS", "Jenkins"],
   },
   {
     company: "SCE Shamoon College of Engineering",

@@ -43,16 +43,18 @@ Education:
 - B.Sc., Software Engineering — SCE Shamoon College of Engineering (2013–2018)
 
 Technical Skills:
-Core Languages: Java (primary), Python
-Data & Streaming: Apache Kafka, PostgreSQL, iPaaS platforms
-API & Integration: REST APIs, third-party system integrations, web services
-AI & Machine Learning: YOLOv4, object detection, generative AI, multi-agent systems
+Core Languages: Java (primary, 5+ yrs enterprise), Python (backend, ML, scripting, FastAPI)
+Data & Streaming: Apache Kafka, PostgreSQL, iPaaS platforms, big data pipelines
+API & Integration: REST APIs, FastAPI, third-party system integrations, web services, microservices
+Generative AI: LLM APIs (OpenAI, Anthropic, Groq), Prompt Engineering, RAG (Retrieval-Augmented Generation), Embeddings & semantic search, LangChain, LangGraph, multi-agent orchestration, AI pipeline design
+Computer Vision & ML: YOLOv4, real-time object detection, model accuracy improvement (+23%), Python ML tooling
 Mobile: Android (Java, DJI Mobile SDK)
-DevOps & Tooling: Jenkins, Git
+DevOps & Tooling: Jenkins CI/CD, Git
 Networking: TCP/IP, Python Sockets, Scapy
-Collaboration: Cross-functional teams, code reviews, technical onboarding
+Collaboration: Cross-functional teams, code reviews, technical onboarding, solution architecture
 
 Certifications:
+- LangGraph: Develop LLM Powered AI Agents with LangGraph (Udemy, June 2026) — 7.5 hours, instructor Eden Marco
 - Java: Lambdas and Streams
 - Java with JSON
 - Introduction to Data Structures & Algorithms in Java
@@ -60,7 +62,7 @@ Certifications:
 - The Complete 2023 Web Development Bootcamp
 
 What Makes Gary Different:
-Self-directed learner who picks up new technologies fast and actually ships them. Built production ML systems before "AI" was every job title on LinkedIn. Knows what real enterprise backend looks like from the inside — not toy projects, not tutorials, but systems processing millions of events for real clients. Currently expanding deep into generative AI and multi-agent architectures.
+Self-directed learner who picks up new technologies fast and actually ships them. Built production ML systems before "AI" was every job title on LinkedIn. Knows what real enterprise backend looks like from the inside — not toy projects, not tutorials, but systems processing millions of events for real clients. Now building full-stack AI engineering skills: LLM APIs, RAG pipelines, multi-agent systems with LangChain/LangGraph, and Python FastAPI backends — combining 5+ years of enterprise Java depth with modern GenAI tooling.
 
 Available to discuss opportunities. Contact: shnol.garik@gmail.com
 `.trim();

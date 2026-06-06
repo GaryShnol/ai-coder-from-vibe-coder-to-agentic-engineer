@@ -10,37 +10,44 @@ type Panel = {
 
 const PANELS: Panel[] = [
   {
-    label: "Backend",
+    label: "Backend & Integration",
     rows: [
-      { key: "java", desc: "primary language, 5+ yrs" },
-      { key: "python", desc: "backend, ML, tooling" },
+      { key: "java", desc: "primary · 5+ yrs enterprise" },
+      { key: "python", desc: "fastapi · ml · scripting" },
+      { key: "fastapi", desc: "async REST APIs" },
       { key: "rest_apis", desc: "design & implementation" },
-      { key: "web_services" },
+      { key: "microservices", desc: "enterprise architecture" },
+      { key: "web_services", desc: "3rd-party integrations" },
     ],
   },
   {
     label: "Data & Streaming",
     rows: [
-      { key: "kafka", desc: "event streaming, enterprise" },
+      { key: "kafka", desc: "millions of events / day" },
       { key: "postgresql", desc: "production workloads" },
-      { key: "ipaas", desc: "integration platform" },
-      { key: "big_data", desc: "enterprise scale" },
+      { key: "ipaas", desc: "enterprise integration" },
+      { key: "big_data", desc: "pipeline design & ops" },
+      { key: "data_pipelines", desc: "end-to-end processing" },
     ],
   },
   {
-    label: "AI & Machine Learning",
+    label: "Generative AI & LLMs",
     rows: [
-      { key: "generative_ai", desc: "active development" },
-      { key: "multi_agent_systems" },
+      { key: "llm_apis", desc: "openai · anthropic · groq" },
+      { key: "prompt_engineering", desc: "system design & tuning" },
+      { key: "rag", desc: "retrieval-augmented generation" },
+      { key: "embeddings", desc: "semantic search" },
+      { key: "langchain / langgraph", desc: "agent orchestration" },
+      { key: "multi_agent_systems", desc: "pipeline architecture" },
+    ],
+  },
+  {
+    label: "ML Vision & Infrastructure",
+    rows: [
       { key: "yolov4", desc: "+23% accuracy achieved" },
       { key: "object_detection", desc: "real-time drone feed" },
-    ],
-  },
-  {
-    label: "Infrastructure & Mobile",
-    rows: [
       { key: "jenkins_cicd", desc: "monitoring, pipelines" },
-      { key: "git" },
+      { key: "git", desc: "version control" },
       { key: "android", desc: "java + dji sdk" },
       { key: "tcp_ip / scapy", desc: "networks, protocols" },
     ],
@@ -48,6 +55,7 @@ const PANELS: Panel[] = [
 ];
 
 const CERTS = [
+  "LangGraph: Develop LLM Powered AI Agents (Udemy · Jun 2026)",
   "Java: Lambdas & Streams",
   "Java with JSON",
   "Data Structures & Algorithms in Java",

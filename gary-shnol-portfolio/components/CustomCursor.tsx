@@ -15,7 +15,8 @@ export default function CustomCursor() {
   useEffect(() => {
     const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
     if (!mq.matches) return;
-    setActive(true);
+
+    const activateId = setTimeout(() => setActive(true), 0);
 
     const move = (e: MouseEvent) => {
       rawX.set(e.clientX);
@@ -37,6 +38,7 @@ export default function CustomCursor() {
     document.addEventListener("mouseout", leave);
 
     return () => {
+      clearTimeout(activateId);
       window.removeEventListener("mousemove", move);
       document.removeEventListener("mouseover", enter);
       document.removeEventListener("mouseout", leave);
