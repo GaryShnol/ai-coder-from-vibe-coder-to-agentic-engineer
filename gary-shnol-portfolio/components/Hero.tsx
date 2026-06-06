@@ -362,10 +362,19 @@ export default function Hero() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.2, duration: 0.4 }}
-          style={{ color: "rgba(232,237,242,0.55)", fontSize: "0.9rem", maxWidth: "30rem", lineHeight: 1.7, fontWeight: 300, marginBottom: "2.5rem" }}
+          style={{ color: "rgba(232,237,242,0.55)", fontSize: "0.9rem", maxWidth: "30rem", lineHeight: 1.7, fontWeight: 300, marginBottom: "1rem" }}
         >
           I build backend systems that process millions of events without breaking a sweat.
           Currently shipping AI that actually works.
+        </motion.p>
+
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.25, duration: 0.4 }}
+          style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "#ecad0a", marginBottom: "2.5rem", letterSpacing: "0.05em" }}
+        >
+          &rarr; Recruiter? Get a tailored AI-written pitch below — takes 5 seconds.
         </motion.p>
 
         {/* CTAs */}
@@ -373,22 +382,35 @@ export default function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.3, duration: 0.5 }}
-          style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginBottom: "4rem" }}
+          style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "4rem", alignItems: "flex-start" }}
         >
-          <MagneticButton href="#digital-twin" className="btn-yellow">
-            Talk to my Digital Twin
+          {/* Primary HR-targeted CTA */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "#888888" }}>
+              ↓ For recruiters &amp; hiring managers
+            </span>
+          </div>
+          <MagneticButton href="#marketing" className="btn-yellow">
+            ⚡ Gary in 60 Seconds
           </MagneticButton>
-          <MagneticButton
-            href="https://www.linkedin.com/in/gary-gavriel-shnol"
-            className="btn-ghost"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            LinkedIn
-          </MagneticButton>
-          <MagneticButton href="#contact" className="btn-ghost">
-            Contact
-          </MagneticButton>
+
+          {/* Secondary CTAs */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginTop: "0.5rem" }}>
+            <MagneticButton href="#digital-twin" className="btn-ghost">
+              Talk to my Digital Twin
+            </MagneticButton>
+            <MagneticButton
+              href="https://www.linkedin.com/in/gary-gavriel-shnol"
+              className="btn-ghost"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              LinkedIn
+            </MagneticButton>
+            <MagneticButton href="#contact" className="btn-ghost">
+              Contact
+            </MagneticButton>
+          </div>
         </motion.div>
 
         {/* Stats */}

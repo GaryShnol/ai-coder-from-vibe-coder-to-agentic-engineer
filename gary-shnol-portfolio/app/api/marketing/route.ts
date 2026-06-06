@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   // Finding 3: rate-limit check after validation
   const ip = getClientIp(req);
-  const { allowed, remaining } = checkRateLimit(`${ip}:marketing`, DAILY_LIMIT, WINDOW_MS);
+  const { allowed, remaining } = await checkRateLimit(`${ip}:marketing`, DAILY_LIMIT, WINDOW_MS);
 
   if (!allowed) {
     return NextResponse.json(

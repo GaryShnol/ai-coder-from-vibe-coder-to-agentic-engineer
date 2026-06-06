@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { href: "#experience", label: "Experience" },
   { href: "#skills", label: "Skills" },
   { href: "#education", label: "Education" },
-  { href: "#marketing", label: "Pitch Me" },
+  { href: "#marketing", label: "60 Seconds ⚡" },
   { href: "#digital-twin", label: "Digital Twin" },
   { href: "#contact", label: "Contact" },
 ];

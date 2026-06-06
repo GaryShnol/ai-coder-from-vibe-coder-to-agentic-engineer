@@ -4,8 +4,38 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/ip";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
+const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
 const SITE_URL = process.env.SITE_URL ?? "http://localhost:3000";
-const MODEL = "google/gemma-3-27b-it:free";
+
+// Multiple providers so a single account's rate limit never blocks everything.
+// OpenRouter free models share one 50 msg/day account quota — Groq is a separate provider.
+type Provider = {
+  url: string;
+  model: string;
+  authHeader: () => string;
+  extraHeaders?: Record<string, string>;
+};
+
+const PROVIDERS: Provider[] = [
+  {
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    model: "google/gemma-4-26b-a4b-it:free",
+    authHeader: () => `Bearer ${OPENROUTER_API_KEY}`,
+    extraHeaders: { "HTTP-Referer": SITE_URL, "X-Title": "Gary Shnol Digital Twin" },
+  },
+  {
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    model: "nvidia/nemotron-3-super-120b-a12b:free",
+    authHeader: () => `Bearer ${OPENROUTER_API_KEY}`,
+    extraHeaders: { "HTTP-Referer": SITE_URL, "X-Title": "Gary Shnol Digital Twin" },
+  },
+  {
+    url: "https://api.groq.com/openai/v1/chat/completions",
+    model: "llama-3.1-8b-instant",   // Groq free tier — separate rate limits
+    authHeader: () => `Bearer ${GROQ_API_KEY}`,
+  },
+];
+
 const DAILY_LIMIT = 5;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -38,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   // Finding 3: rate-limit check after validation
   const ip = getClientIp(req);
-  const { allowed, remaining } = checkRateLimit(`${ip}:chat`, DAILY_LIMIT, WINDOW_MS);
+  const { allowed, remaining } = await checkRateLimit(`${ip}:chat`, DAILY_LIMIT, WINDOW_MS);
 
   if (!allowed) {
     return NextResponse.json(
@@ -50,45 +80,52 @@ export async function POST(req: NextRequest) {
   // Finding 5: cap history to last 6 turns
   const trimmedMessages = messages.slice(-6);
 
-  try {
-    // Finding 2: add fetch timeout
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      signal: AbortSignal.timeout(8000),
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": SITE_URL,
-        "X-Title": "Gary Shnol Digital Twin",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "system", content: CHAT_SYSTEM_PROMPT }, ...trimmedMessages],
-        max_tokens: 300,
-        temperature: 0.7,
-      }),
-    });
+  for (const provider of PROVIDERS) {
+    // Skip Groq if key not configured
+    if (provider.url.includes("groq") && !GROQ_API_KEY) continue;
 
-    if (!res.ok) {
-      const err = await res.text().catch(() => "");
-      console.error("OpenRouter error:", res.status, err);
-      return NextResponse.json({ error: "AI service error." }, { status: 502 });
+    try {
+      const res = await fetch(provider.url, {
+        method: "POST",
+        signal: AbortSignal.timeout(8000),
+        headers: {
+          Authorization: provider.authHeader(),
+          "Content-Type": "application/json",
+          ...provider.extraHeaders,
+        },
+        body: JSON.stringify({
+          model: provider.model,
+          messages: [{ role: "system", content: CHAT_SYSTEM_PROMPT }, ...trimmedMessages],
+          max_tokens: 300,
+          temperature: 0.7,
+        }),
+      });
+
+      if (res.status === 429) {
+        console.warn(`${provider.model} rate-limited, trying next provider...`);
+        continue;
+      }
+
+      if (!res.ok) {
+        const err = await res.text().catch(() => "");
+        console.error(`AI error (${provider.model}):`, res.status, err);
+        continue;
+      }
+
+      const data = await res.json();
+      const reply: string = data.choices?.[0]?.message?.content ?? "";
+
+      if (!reply) continue;
+
+      return NextResponse.json({ reply, remaining });
+    } catch (err) {
+      if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
+        console.warn(`${provider.model} timed out, trying next provider...`);
+        continue;
+      }
+      console.error(`Chat error (${provider.model}):`, err);
     }
-
-    const data = await res.json();
-    const reply: string = data.choices?.[0]?.message?.content ?? "";
-
-    if (!reply) {
-      return NextResponse.json({ error: "Empty response from AI." }, { status: 502 });
-    }
-
-    return NextResponse.json({ reply, remaining });
-  } catch (err) {
-    // Finding 2: handle timeout specifically
-    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
-      return NextResponse.json({ error: "AI service timed out." }, { status: 504 });
-    }
-    console.error("Chat error:", err);
-    return NextResponse.json({ error: "Internal error." }, { status: 500 });
   }
+
+  return NextResponse.json({ error: "All AI models are currently unavailable. Please try again later." }, { status: 502 });
 }
