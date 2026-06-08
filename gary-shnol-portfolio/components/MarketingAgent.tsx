@@ -2,6 +2,48 @@
 
 import { useRef, useState, useEffect } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
+import type { CtaEventRequest, CtaEventType } from "@/lib/cta-types";
+
+const CTA_SEEN_KEY = "cta_seen_marketing";
+const CONTACT_EMAIL = "shnol.garik@gmail.com";
+
+function logCtaEvent(payload: CtaEventRequest) {
+  try {
+    fetch("/api/cta-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  } catch {
+    // never let CTA logging break the UI
+  }
+}
+
+function fireMarketingCtaEvent(event: CtaEventType, role: string | null) {
+  const payload: CtaEventRequest =
+    role != null
+      ? { surface: "marketing", event, role }
+      : { surface: "marketing", event };
+  logCtaEvent(payload);
+}
+
+function hasSeenMarketingCta(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem(CTA_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markMarketingCtaSeen() {
+  try {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(CTA_SEEN_KEY, "1");
+  } catch {
+    // ignore — private browsing or storage disabled
+  }
+}
 
 const ROLES = [
   { id: "recruiter", label: "Recruiter / HR", desc: "Hiring manager perspective" },
@@ -10,16 +52,30 @@ const ROLES = [
   { id: "engineer", label: "Fellow Engineer", desc: "Peer-to-peer" },
 ];
 
-function TypewriterText({ text }: { text: string }) {
+function TypewriterText({ text, onDone }: { text: string; onDone?: () => void }) {
   const [displayed, setDisplayed] = useState("");
+  const doneRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+
+  // Keep ref in sync without retriggering the typing effect
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  });
 
   useEffect(() => {
     if (!text) return;
+    doneRef.current = false;
     let i = 0;
     const timer = setInterval(() => {
       i++;
       setDisplayed(text.slice(0, i));
-      if (i >= text.length) clearInterval(timer);
+      if (i >= text.length) {
+        clearInterval(timer);
+        if (!doneRef.current) {
+          doneRef.current = true;
+          onDoneRef.current?.();
+        }
+      }
     }, 18);
     return () => clearInterval(timer);
   }, [text]);
@@ -44,6 +100,11 @@ export default function MarketingAgent() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [pitchTypingDone, setPitchTypingDone] = useState(false);
+  // Lazy-init from sessionStorage: safe from hydration mismatches because the CTA this
+  // flag gates is only ever rendered after a client-only pitch generation completes
+  // (never during SSR / initial hydration).
+  const [ctaSeen, setCtaSeen] = useState(() => hasSeenMarketingCta());
 
   const generate = async (role: string) => {
     if (loading) return;
@@ -52,6 +113,7 @@ export default function MarketingAgent() {
     setPitch("");
     setError("");
     setCopied(false);
+    setPitchTypingDone(false);
 
     try {
       const res = await fetch("/api/marketing", {
@@ -169,7 +231,22 @@ export default function MarketingAgent() {
                 </motion.div>
               )}
 
-              {error && !loading && (
+              {error && !loading && remaining === 0 && (
+                <motion.div
+                  key="rate-limited"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <RateLimitedCta
+                    selected={selected}
+                    ctaSeen={ctaSeen}
+                    onFirstShown={() => setCtaSeen(true)}
+                  />
+                </motion.div>
+              )}
+
+              {error && !loading && remaining !== 0 && (
                 <motion.p
                   key="error"
                   initial={{ opacity: 0 }}
@@ -192,15 +269,24 @@ export default function MarketingAgent() {
                     &gt; pitch for {ROLES.find((r) => r.id === selected)?.label}
                   </p>
                   <p style={{ fontSize: "0.95rem", lineHeight: 1.75, color: "rgba(232,237,242,0.85)", marginBottom: "1.25rem" }}>
-                    <TypewriterText text={pitch} />
+                    <TypewriterText text={pitch} onDone={() => setPitchTypingDone(true)} />
                   </p>
-                  <button
-                    onClick={copyPitch}
-                    className="btn-ghost"
-                    style={{ fontSize: "0.6rem", padding: "0.4rem 1rem" }}
-                  >
-                    {copied ? "Copied!" : "Copy Pitch"}
-                  </button>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.75rem" }}>
+                    <button
+                      onClick={copyPitch}
+                      className="btn-ghost"
+                      style={{ fontSize: "0.6rem", padding: "0.4rem 1rem" }}
+                    >
+                      {copied ? "Copied!" : "Copy Pitch"}
+                    </button>
+                    {pitchTypingDone && (
+                      <MarketingCta
+                        selected={selected}
+                        ctaSeen={ctaSeen}
+                        onFirstShown={() => setCtaSeen(true)}
+                      />
+                    )}
+                  </div>
                 </motion.div>
               )}
 
@@ -219,5 +305,152 @@ export default function MarketingAgent() {
         </div>
       </div>
     </section>
+  );
+}
+
+/** Primary CTA action: a pre-filled mailto requesting a 15-minute call, carrying the role as context. */
+function buildBookingHref(role: string | null): string {
+  const roleLabel = ROLES.find((r) => r.id === role)?.label ?? null;
+  const subject = roleLabel ? `15 min re: ${roleLabel} pitch` : "15 min — Gary's pitch generator";
+  const body = roleLabel
+    ? `Hi Gary,\n\nI just read the AI-generated pitch tailored for "${roleLabel}" on your site — could we grab 15 minutes on a call to continue the conversation?\n`
+    : `Hi Gary,\n\nI just tried your pitch generator — could we grab 15 minutes on a call to continue the conversation?\n`;
+  const params = new URLSearchParams({ subject, body });
+  return `mailto:${CONTACT_EMAIL}?${params.toString()}`;
+}
+
+/** Quiet secondary action: plain, unparameterized mailto (matches the site's existing "contact directly" links). */
+function buildPlainMailtoHref(): string {
+  return `mailto:${CONTACT_EMAIL}`;
+}
+
+function MarketingCta({
+  selected,
+  ctaSeen,
+  onFirstShown,
+}: {
+  selected: string | null;
+  ctaSeen: boolean;
+  onFirstShown: () => void;
+}) {
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (ctaSeen || firedRef.current) return;
+    firedRef.current = true;
+    fireMarketingCtaEvent("shown", selected);
+    markMarketingCtaSeen();
+    onFirstShown();
+  }, [ctaSeen, selected, onFirstShown]);
+
+  const handleClick = () => {
+    fireMarketingCtaEvent("click", selected);
+  };
+
+  if (ctaSeen) {
+    return (
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "#888888" }}>
+        &gt; (calendar link above &uarr;)
+      </span>
+    );
+  }
+
+  const roleLabel = ROLES.find((r) => r.id === selected)?.label ?? "you";
+  const href = buildBookingHref(selected);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, delay: 0.3 }}
+      aria-live="polite"
+      style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", lineHeight: 1.8 }}
+    >
+      <p style={{ color: "#ecad0a", marginBottom: "0.25rem" }}>
+        &gt; pitch for {roleLabel} &mdash; generated
+      </p>
+      <p style={{ color: "#ecad0a" }}>
+        &gt; recommend: skip the back-and-forth &mdash;{" "}
+        <a
+          href={href}
+          onClick={handleClick}
+          className="hover-line"
+          aria-label={`Schedule 15 minutes with Gary to discuss this ${roleLabel} pitch`}
+          title={`book 15 min — re: ${roleLabel} pitch`}
+          style={{ color: "#209dd7" }}
+        >
+          grab 15 min on Gary&apos;s calendar &rarr;
+        </a>
+      </p>
+    </motion.div>
+  );
+}
+
+function RateLimitedCta({
+  selected,
+  ctaSeen,
+  onFirstShown,
+}: {
+  selected: string | null;
+  ctaSeen: boolean;
+  onFirstShown: () => void;
+}) {
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (ctaSeen || firedRef.current) return;
+    firedRef.current = true;
+    fireMarketingCtaEvent("shown", selected);
+    markMarketingCtaSeen();
+    onFirstShown();
+  }, [ctaSeen, selected, onFirstShown]);
+
+  const handleClick = () => {
+    fireMarketingCtaEvent("click", selected);
+  };
+
+  const href = buildBookingHref(selected);
+
+  if (ctaSeen) {
+    return (
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", lineHeight: 1.8 }}>
+        <p style={{ color: "#f87171", marginBottom: "0.35rem" }}>
+          &gt; daily limit reached &mdash; that&apos;s the cost-control talking, not me
+        </p>
+        <p>
+          <a href={href} onClick={handleClick} className="hover-line" style={{ color: "#888888", fontSize: "0.6rem" }}>
+            &gt; (calendar link above &uarr;)
+          </a>
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div aria-live="polite" style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", lineHeight: 1.8 }}>
+      <p style={{ color: "#f87171", marginBottom: "0.35rem" }}>
+        &gt; daily limit reached &mdash; that&apos;s the cost-control talking, not me
+      </p>
+      <p style={{ color: "#ecad0a", marginBottom: "0.35rem" }}>
+        &gt; next: skip the queue &mdash;{" "}
+        <a
+          href={href}
+          onClick={handleClick}
+          className="hover-line"
+          aria-label="Schedule 15 minutes with Gary on his calendar"
+          title="book 15 min on Gary's calendar"
+          style={{ color: "#209dd7" }}
+        >
+          book 15 min on Gary&apos;s calendar
+        </a>
+      </p>
+      <p style={{ color: "#888888", fontSize: "0.7rem" }}>
+        &gt; or email{" "}
+        <a href={buildPlainMailtoHref()} className="hover-line" style={{ color: "#888888" }}>
+          {CONTACT_EMAIL}
+        </a>{" "}
+        directly
+      </p>
+    </div>
   );
 }
