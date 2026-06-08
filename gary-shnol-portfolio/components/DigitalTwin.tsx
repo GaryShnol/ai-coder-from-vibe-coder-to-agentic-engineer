@@ -2,81 +2,9 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, useInView } from "framer-motion";
-import type { CtaEventRequest, CtaEventType } from "@/lib/cta-types";
 
 type Message = { role: "user" | "assistant"; content: string };
-type ChatMsg =
-  | { type: "user" | "assistant" | "system" | "error"; text: string }
-  | { type: "cta"; text: string; question?: string; quiet: boolean };
-
-const CTA_SEEN_KEY = "cta_seen_twin";
-const CONTACT_EMAIL = "shnol.garik@gmail.com";
-const QUESTION_TRUNCATE_LEN = 200;
-
-function logCtaEvent(payload: CtaEventRequest) {
-  try {
-    fetch("/api/cta-event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  } catch {
-    // never let CTA logging break the UI
-  }
-}
-
-function truncateQuestion(question: string): string {
-  return question.length > QUESTION_TRUNCATE_LEN
-    ? question.slice(0, QUESTION_TRUNCATE_LEN)
-    : question;
-}
-
-function lastUserQuestion(history: Message[]): string | undefined {
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].role === "user") return truncateQuestion(history[i].content);
-  }
-  return undefined;
-}
-
-function fireTwinCtaEvent(event: CtaEventType, question: string | undefined) {
-  const payload: CtaEventRequest =
-    question != null
-      ? { surface: "twin", event, question }
-      : { surface: "twin", event };
-  logCtaEvent(payload);
-}
-
-function hasSeenTwinCta(): boolean {
-  try {
-    if (typeof window === "undefined") return false;
-    return window.sessionStorage.getItem(CTA_SEEN_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function markTwinCtaSeen() {
-  try {
-    if (typeof window === "undefined") return;
-    window.sessionStorage.setItem(CTA_SEEN_KEY, "1");
-  } catch {
-    // ignore — private browsing or storage disabled
-  }
-}
-
-/** Primary CTA action: a pre-filled mailto requesting a 15-minute call, carrying the last question as context. */
-function buildBookingHref(question: string | undefined): string {
-  const subject = question ? "15 min — continuing from the digital twin" : "15 min — let's talk";
-  const body = question
-    ? `Hi Gary,\n\nI was chatting with your digital twin and asked: "${question}"\n\nCould we grab 15 minutes on a call to continue the conversation? I'll bring the context.\n`
-    : `Hi Gary,\n\nI was chatting with your digital twin — could we grab 15 minutes on a call to continue the conversation?\n`;
-  const params = new URLSearchParams({ subject, body });
-  return `mailto:${CONTACT_EMAIL}?${params.toString()}`;
-}
-
-function buildPlainMailtoHref(): string {
-  return `mailto:${CONTACT_EMAIL}`;
-}
+type ChatMsg = { type: "user" | "assistant" | "system" | "error"; text: string };
 
 const INITIAL_MSGS: ChatMsg[] = [
   { type: "system", text: "Loading profile... [OK]" },
@@ -133,12 +61,6 @@ export default function DigitalTwin() {
   const [remaining, setRemaining] = useState(5);
   const [loading, setLoading] = useState(false);
   const [activeTypewriter, setActiveTypewriter] = useState(false);
-  const rateLimitedCtaFiredRef = useRef(false);
-  const lastQuestionRef = useRef<string | undefined>(undefined);
-  // Lazy-init from sessionStorage: shared cap across BOTH the post-reply CTA and the
-  // rate-limited fallback CTA — the spec requires one impression per session per surface,
-  // not per state. Hydration-safe: this only ever affects client-only post-interaction renders.
-  const [twinCtaSeen, setTwinCtaSeen] = useState(() => hasSeenTwinCta());
 
   const scrollBottom = useCallback(() => {
     const el = messagesRef.current;
@@ -149,21 +71,6 @@ export default function DigitalTwin() {
     scrollBottom();
   }, [msgs, scrollBottom]);
 
-  // Rate-limit hits the moment `remaining` reaches 0 — fire the CTA "shown" event,
-  // mirroring the rendered fallback block (input replaced by the limit-reached message),
-  // gated by the SAME session cap as the post-reply CTA (one impression per session per surface).
-  useEffect(() => {
-    if (remaining > 0 || rateLimitedCtaFiredRef.current) return;
-    rateLimitedCtaFiredRef.current = true;
-    if (twinCtaSeen) return;
-    fireTwinCtaEvent("shown", lastUserQuestion(history));
-    markTwinCtaSeen();
-    // Intentionally not calling setTwinCtaSeen here (would be a setState-in-effect):
-    // markTwinCtaSeen() persists the flag to sessionStorage, and the lazy useState
-    // initializer picks it up on the next mount (e.g. page refresh) — which is the
-    // only time the "quiet variant" needs to differ from this first-ever showing.
-  }, [remaining, history, twinCtaSeen]);
-
   const canSend = !loading && !activeTypewriter && remaining > 0 && input.trim().length > 0;
 
   const send = useCallback(async () => {
@@ -172,7 +79,6 @@ export default function DigitalTwin() {
 
     const userMsg: Message = { role: "user", content: text };
     const newHistory = [...history, userMsg];
-    lastQuestionRef.current = truncateQuestion(text);
 
     setMsgs((m) => [...m, { type: "user", text }]);
     setInput("");
@@ -204,32 +110,6 @@ export default function DigitalTwin() {
       setLoading(false);
     }
   }, [input, history, loading, activeTypewriter, remaining]);
-
-  // Fires once the assistant's reply finishes typing — appends the CTA as the next
-  // system-voice line, firing `shown` only the first time per session.
-  const handleAssistantTypingDone = useCallback(() => {
-    setActiveTypewriter(false);
-    const question = lastQuestionRef.current;
-    const wasSeen = twinCtaSeen;
-
-    if (!wasSeen) {
-      fireTwinCtaEvent("shown", question);
-      markTwinCtaSeen();
-      setTwinCtaSeen(true);
-    }
-
-    setMsgs((m) => [
-      ...m,
-      wasSeen
-        ? { type: "cta", text: "> (calendar link above ↑)", quiet: true }
-        : {
-            type: "cta",
-            text: "> recommend: reach out — grab 15 min on Gary's calendar",
-            question,
-            quiet: false,
-          },
-    ]);
-  }, [twinCtaSeen]);
 
   return (
     <section id="digital-twin" style={{ padding: "6rem 1.5rem", background: "#010e1f" }}>
@@ -320,7 +200,7 @@ export default function DigitalTwin() {
                   <div key={i}>
                     <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "#ecad0a", marginBottom: "0.25rem" }}>gary@digital-twin:~$</p>
                     {isLast ? (
-                      <TypewriterMsg text={msg.text} onDone={handleAssistantTypingDone} />
+                      <TypewriterMsg text={msg.text} onDone={() => setActiveTypewriter(false)} />
                     ) : (
                       <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.875rem", color: "rgba(232,237,242,0.85)", whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.65 }}>
                         {msg.text}
@@ -333,35 +213,6 @@ export default function DigitalTwin() {
                 return (
                   <p key={i} style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "#f87171" }}>
                     &gt; Error: {msg.text}
-                  </p>
-                );
-              }
-              if (msg.type === "cta") {
-                if (msg.quiet) {
-                  return (
-                    <p key={i} aria-live="polite" style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "#888888" }}>
-                      {msg.text}
-                    </p>
-                  );
-                }
-                const ctaHref = buildBookingHref(msg.question);
-                return (
-                  <p
-                    key={i}
-                    aria-live="polite"
-                    style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: "#ecad0a", whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.65 }}
-                  >
-                    &gt; recommend: reach out &mdash;{" "}
-                    <a
-                      href={ctaHref}
-                      onClick={() => fireTwinCtaEvent("click", msg.question)}
-                      className="hover-line"
-                      aria-label="Schedule 15 minutes with Gary to continue this conversation"
-                      title="book 15 min — re: this conversation"
-                      style={{ color: "#209dd7" }}
-                    >
-                      grab 15 min on Gary&apos;s calendar
-                    </a>
                   </p>
                 );
               }
@@ -424,46 +275,13 @@ export default function DigitalTwin() {
                 {loading ? "..." : "Send"}
               </button>
             </div>
-          ) : twinCtaSeen ? (
-            <div aria-live="polite" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "0.75rem 1.25rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "#f87171" }}>
-                &gt; daily limit reached &mdash; that&apos;s the cost-control talking, not me
-              </p>
-              <p>
-                <a
-                  href={buildBookingHref(lastUserQuestion(history))}
-                  onClick={() => fireTwinCtaEvent("click", lastUserQuestion(history))}
-                  className="hover-line"
-                  style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "#888888" }}
-                >
-                  &gt; (calendar link above &uarr;)
-                </a>
-              </p>
-            </div>
           ) : (
-            <div aria-live="polite" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "0.75rem 1.25rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "#f87171" }}>
-                &gt; daily limit reached &mdash; that&apos;s the cost-control talking, not me
-              </p>
-              <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "#ecad0a" }}>
-                &gt; next: skip the queue &mdash;{" "}
-                <a
-                  href={buildBookingHref(lastUserQuestion(history))}
-                  onClick={() => fireTwinCtaEvent("click", lastUserQuestion(history))}
-                  className="hover-line"
-                  aria-label="Schedule 15 minutes with Gary on his calendar"
-                  title="book 15 min on Gary's calendar"
-                  style={{ color: "#209dd7" }}
-                >
-                  book 15 min on Gary&apos;s calendar
-                </a>
-              </p>
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "0.75rem 1.25rem" }}>
               <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "#888888" }}>
-                &gt; or email{" "}
-                <a href={buildPlainMailtoHref()} className="hover-line" style={{ color: "#888888" }}>
-                  {CONTACT_EMAIL}
-                </a>{" "}
-                directly
+                &gt; Daily limit reached. Contact Gary directly:{" "}
+                <a href="mailto:shnol.garik@gmail.com" className="hover-line" style={{ color: "#209dd7" }}>
+                  shnol.garik@gmail.com
+                </a>
               </p>
             </div>
           )}
