@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { OPEN_PALETTE_EVENT } from "@/components/CommandPalette";
 
 const NAV_ITEMS = [
   { href: "#experience", label: "Experience" },
@@ -57,11 +58,44 @@ export default function Navbar() {
           </ul>
 
           {/* Available badge */}
-          <div className="hidden md:flex" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span className="status-dot" />
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "#ecad0a" }}>
-              Available
-            </span>
+          <div className="hidden md:flex" style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <button
+              onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
+              aria-label="Open command palette"
+              title="Open command palette"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                fontFamily: "var(--font-mono)",
+                fontSize: "0.6rem",
+                letterSpacing: "0.15em",
+                textTransform: "uppercase",
+                color: "#888888",
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.1)",
+                padding: "0.3rem 0.6rem",
+                cursor: "pointer",
+                transition: "border-color 0.2s, color 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(236,173,10,0.5)";
+                e.currentTarget.style.color = "#ecad0a";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                e.currentTarget.style.color = "#888888";
+              }}
+            >
+              <span>⌘</span>
+              <span>K</span>
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span className="status-dot" />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "#ecad0a" }}>
+                Available
+              </span>
+            </div>
           </div>
 
           {/* Mobile menu button */}

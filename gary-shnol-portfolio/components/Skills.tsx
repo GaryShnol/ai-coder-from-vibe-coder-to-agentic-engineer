@@ -1,7 +1,35 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { motion, useInView } from "framer-motion";
+
+const TILT_MAX_DEG = 7;
+
+/** Subtle 3D tilt-toward-cursor — driven imperatively via ref so it never fights framer-motion's reveal transform on the parent. */
+function useTilt() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(1000px) rotateX(${(-py * TILT_MAX_DEG).toFixed(2)}deg) rotateY(${(px * TILT_MAX_DEG).toFixed(2)}deg)`;
+    el.style.setProperty("--glow-x", `${(px + 0.5) * 100}%`);
+    el.style.setProperty("--glow-y", `${(py + 0.5) * 100}%`);
+    el.style.setProperty("--glow-o", "1");
+  }, []);
+
+  const onLeave = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transform = "perspective(1000px) rotateX(0deg) rotateY(0deg)";
+    el.style.setProperty("--glow-o", "0");
+  }, []);
+
+  return { ref, onMove, onLeave };
+}
 
 type Panel = {
   label: string;
@@ -66,6 +94,7 @@ const CERTS = [
 function SkillPanel({ panel, index }: { panel: Panel; index: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
+  const tilt = useTilt();
 
   return (
     <motion.div
@@ -73,22 +102,50 @@ function SkillPanel({ panel, index }: { panel: Panel; index: number }) {
       initial={{ opacity: 0, y: 30 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.55, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
-      style={{ padding: "1.25rem 2rem 2rem", background: "#010e1f" }}
+      style={{ background: "#010e1f" }}
     >
-      <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "#ecad0a", borderBottom: "1px solid rgba(236,173,10,0.2)", paddingBottom: "0.75rem", marginBottom: "1rem" }}>
-        &gt;&gt; {panel.label}
-      </p>
-      {panel.rows.map((row) => (
-        <div key={row.key} className="status-row">
-          <span style={{ color: "#888888", minWidth: "14rem" }}>&nbsp;&nbsp;{row.key}</span>
-          <span style={{ color: "#4ade80", fontWeight: 700, flexShrink: 0 }}>[OK]</span>
-          {row.desc && (
-            <span style={{ color: "#888888", fontSize: "0.7rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              &nbsp;{row.desc}
-            </span>
-          )}
-        </div>
-      ))}
+      <div
+        ref={tilt.ref}
+        onMouseMove={tilt.onMove}
+        onMouseLeave={tilt.onLeave}
+        style={{
+          position: "relative",
+          padding: "1.25rem 2rem 2rem",
+          transformStyle: "preserve-3d",
+          transition: "transform 0.4s cubic-bezier(0.23,1,0.32,1)",
+          willChange: "transform",
+          ["--glow-x" as string]: "50%",
+          ["--glow-y" as string]: "50%",
+          ["--glow-o" as string]: "0",
+        }}
+      >
+        {/* Cursor-tracking glow — fades in on hover, follows the tilt */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            opacity: "var(--glow-o)",
+            transition: "opacity 0.3s ease",
+            background: "radial-gradient(360px circle at var(--glow-x) var(--glow-y), rgba(236,173,10,0.07), transparent 60%)",
+            pointerEvents: "none",
+          }}
+        />
+        <p style={{ position: "relative", fontFamily: "var(--font-mono)", fontSize: "0.65rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "#ecad0a", borderBottom: "1px solid rgba(236,173,10,0.2)", paddingBottom: "0.75rem", marginBottom: "1rem" }}>
+          &gt;&gt; {panel.label}
+        </p>
+        {panel.rows.map((row) => (
+          <div key={row.key} className="status-row" style={{ position: "relative" }}>
+            <span style={{ color: "#888888", minWidth: "14rem" }}>&nbsp;&nbsp;{row.key}</span>
+            <span style={{ color: "#4ade80", fontWeight: 700, flexShrink: 0 }}>[OK]</span>
+            {row.desc && (
+              <span style={{ color: "#888888", fontSize: "0.7rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                &nbsp;{row.desc}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
     </motion.div>
   );
 }

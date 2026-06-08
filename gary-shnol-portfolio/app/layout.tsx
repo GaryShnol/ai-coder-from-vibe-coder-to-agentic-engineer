@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import CustomCursor from "@/components/CustomCursor";
+import BootSequence from "@/components/BootSequence";
+import CommandPalette from "@/components/CommandPalette";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -35,6 +37,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${jetbrains.variable}`}>
       <body className="font-sans noise">
         <CustomCursor />
+        <BootSequence />
+        <CommandPalette />
         {children}
       </body>
     </html>

@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
+
+const MAGNETIC_SELECTOR = "a, button, [role='button']";
+// How strongly the cursor is pulled toward a hovered element's center —
+// 0 = follows the raw pointer exactly, 1 = locks dead-center.
+const MAGNET_PULL = 0.35;
 
 export default function CustomCursor() {
   const [active, setActive] = useState(false);
   const [hovering, setHovering] = useState(false);
+  const magnetRect = useRef<DOMRect | null>(null);
 
   const rawX = useMotionValue(-200);
   const rawY = useMotionValue(-200);
@@ -19,18 +25,33 @@ export default function CustomCursor() {
     const activateId = setTimeout(() => setActive(true), 0);
 
     const move = (e: MouseEvent) => {
-      rawX.set(e.clientX);
-      rawY.set(e.clientY);
+      const rect = magnetRect.current;
+      if (rect) {
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        rawX.set(cx + (e.clientX - cx) * (1 - MAGNET_PULL));
+        rawY.set(cy + (e.clientY - cy) * (1 - MAGNET_PULL));
+      } else {
+        rawX.set(e.clientX);
+        rawY.set(e.clientY);
+      }
     };
 
     const enter = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest("a, button, [role='button']")) setHovering(true);
+      const target = t.closest<HTMLElement>(MAGNETIC_SELECTOR);
+      if (target) {
+        magnetRect.current = target.getBoundingClientRect();
+        setHovering(true);
+      }
     };
 
     const leave = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest("a, button, [role='button']")) setHovering(false);
+      if (t.closest(MAGNETIC_SELECTOR)) {
+        magnetRect.current = null;
+        setHovering(false);
+      }
     };
 
     window.addEventListener("mousemove", move, { passive: true });
@@ -79,9 +100,10 @@ export default function CustomCursor() {
           height: hovering ? "44px" : "32px",
           border: "1px solid rgba(236,173,10,0.45)",
           borderRadius: "50%",
+          boxShadow: hovering ? "0 0 24px rgba(236,173,10,0.25)" : "none",
           pointerEvents: "none",
           zIndex: 9998,
-          transition: "width 0.2s ease, height 0.2s ease",
+          transition: "width 0.2s ease, height 0.2s ease, box-shadow 0.25s ease",
         }}
       />
     </>
